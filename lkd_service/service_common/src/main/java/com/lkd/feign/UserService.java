@@ -23,9 +23,11 @@ public interface UserService{
     @GetMapping("/user/repairerCount")
     Integer getRepairerCount();
 
+    //LXL
     @GetMapping("/user/repairerList/{innerCode}")
     List<UserVO> getRepairerListByInnerCode(@PathVariable String innerCode);
 
+    //LXL
     @GetMapping("/user/operatorList/{innerCode}")
     List<UserVO> getOperatorListByInnerCode(@PathVariable String innerCode);
 

@@ -7,6 +7,7 @@ import com.google.common.base.Strings;
 import com.lkd.common.VMSystem;
 import com.lkd.dao.UserDao;
 import com.lkd.entity.UserEntity;
+import com.lkd.feign.VMService;
 import com.lkd.http.view.TokenObject;
 import com.lkd.http.vo.LoginReq;
 import com.lkd.http.vo.LoginResp;
@@ -15,7 +16,6 @@ import com.lkd.service.UserService;
 import com.lkd.sms.SmsSender;
 import com.lkd.utils.BCrypt;
 import com.lkd.utils.JWTUtil;
-import com.lkd.vendingMachine.VmClient;
 import com.lkd.vo.Pager;
 import com.lkd.vo.UserVO;
 import com.lkd.vo.VmVO;
@@ -48,7 +48,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements
     private UserDao userDao;
 
     @Autowired
-    private VmClient client;
+    private VMService client;
 
     /**
      * 根据机器id查询所属片区的维修人员
@@ -59,7 +59,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements
     @Override
     public ArrayList<UserVO> getUser(String innerCode) {
         //根据售货机属性查询到地区id
-        VmVO vm = client.getByInnerCode(innerCode);
+        VmVO vm = client.getVMInfo(innerCode);
         Long regionId = vm.getRegionId();
         //根据地点id查询到该地点对应的运营人员
         LambdaQueryWrapper<UserEntity> queryWrapper = new LambdaQueryWrapper<>();
@@ -85,7 +85,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements
     @Override
     public ArrayList<UserVO> getrepairerList(String innerCode) {
         //根据售货机属性查询到地区id
-        VmVO vm = client.getByInnerCode(innerCode);
+        VmVO vm = client.getVMInfo(innerCode);
         Long regionId = vm.getRegionId();
         //根据地点id查询到该地点对应的运营人员
         LambdaQueryWrapper<UserEntity> queryWrapper = new LambdaQueryWrapper<>();
