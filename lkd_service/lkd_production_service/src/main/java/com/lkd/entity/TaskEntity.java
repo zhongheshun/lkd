@@ -49,4 +49,6 @@ public class TaskEntity extends AbstractEntity implements Serializable{
     private TaskStatusTypeEntity taskStatusTypeEntity;
     @TableField(exist = false)
     private TaskTypeEntity taskType;
+
+    private TaskDetailsEntity taskDetailsEntity;
 }

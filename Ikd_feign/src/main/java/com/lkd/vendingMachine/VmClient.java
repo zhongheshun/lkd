@@ -10,6 +10,6 @@ import java.util.List;
 
 @FeignClient("vm-service")
 public interface VmClient {
-    @GetMapping("/vm//info/{innerCode}")
+    @GetMapping("/vm/info/{innerCode}")
     VmVO getByInnerCode(@PathVariable("innerCode") String innerCode);
 }

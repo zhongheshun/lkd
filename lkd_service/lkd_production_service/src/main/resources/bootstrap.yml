@@ -1,6 +1,6 @@
 spring:
-  main:
-    allow-bean-definition-overriding: true
+  application:
+    name: task-service
   cloud:
     consul:
       discovery:
@@ -17,7 +17,7 @@ spring:
         enabled: true
         format: yaml
         prefix: config
-#        default-context: vmConfig
+        #        default-context: vmConfig
         data-key: data
         fail-fast: true
         watch:
