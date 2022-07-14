@@ -6,7 +6,10 @@ import com.lkd.dtos.TaskSearchDTO;
 import com.lkd.emq.Topic;
 import com.lkd.entity.TaskEntity;
 import com.lkd.entity.UserEntity;
+import com.lkd.feign.UserService;
+import com.lkd.feign.VMService;
 import com.lkd.service.TaskService;
+import com.lkd.vo.UserVO;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -14,6 +17,7 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
+
 import java.util.List;
 import java.util.Set;
 
@@ -22,6 +26,12 @@ import static com.lkd.utils.UserRoleUtils.isRepair;
 
 @Topic("XXXX")
 public class TaskInitServiceImpl implements MqttCallback {
+
+    @Autowired
+    UserService userClient;
+
+    @Autowired
+    VMService vmService;
 
     @Autowired
     RedisTemplate redisTemplate;
@@ -36,21 +46,21 @@ public class TaskInitServiceImpl implements MqttCallback {
     //运维人员
     String OPS_WORKER = WORKER_SALT + "OPS_";
 
-    /**
-     * 更改工单状态
-     */
-    HttpStatus workStatusEditJobHandler(Integer taskId , Integer status) {
-
-        TaskEntity one = taskService.getById(taskId);
-
-        //设置状态
-        one.setTaskStatus(status);
-
-        //更新状态
-        taskService.updateById(one);
-
-        return HttpStatus.OK;
-    }
+//    /**
+//     * 更改工单状态
+//     */
+//    HttpStatus workStatusEditJobHandler(Integer taskId, Integer status) {
+//
+//        TaskEntity one = taskService.getById(taskId);
+//
+//        //设置状态
+//        one.setTaskStatus(status);
+//
+//        //更新状态
+//        taskService.updateById(one);
+//
+//        return HttpStatus.OK;
+//    }
 
     /**
      * 初始化工单
@@ -62,7 +72,7 @@ public class TaskInitServiceImpl implements MqttCallback {
         redisTemplate.opsForHash().delete(WORKING_QUEUE);
 
         //初始化
-        List<UserEntity> users = null;
+        List<UserVO> users = userClient.getUserList();
         users.stream().forEach(
                 user -> {
                     //需要是启用状态
@@ -74,11 +84,11 @@ public class TaskInitServiceImpl implements MqttCallback {
 
                         //是否为运营人员
                         if (isOperator(user.getRoleId()))
-                            redisTemplate.opsForHash().put(WORKING_QUEUE, DBO_WORKER + user.getId() + "_" + user.getUserName(), 0);
+                            redisTemplate.opsForHash().put(WORKING_QUEUE, DBO_WORKER + user.getRoleId() + "_" + user.getUserId() + "_" + user.getUserName(), 0);
 
                         //是否为运维人员
                         if (isRepair(user.getRoleId()))
-                            redisTemplate.opsForHash().put(WORKING_QUEUE, OPS_WORKER + user.getId() + "_" + user.getUserName(), 0);
+                            redisTemplate.opsForHash().put(WORKING_QUEUE, DBO_WORKER + user.getRoleId() + "_" + OPS_WORKER + user.getUserId() + "_" + user.getUserName(), 0);
 
                     }
                 }
@@ -106,7 +116,11 @@ public class TaskInitServiceImpl implements MqttCallback {
 
         //比较出最少任务的工人  且人员类型需要符合
         for (Object key : keys) {
-            if (count == 0 && ((String) key).contains(needWorkerType)) {
+
+            //拿到机器ID查询所属点位  之后可以把点位作为条件匹配工人
+            String containsKey = needWorkerType + vmService.getVMInfo(taskSearchDTO.getInnerCode());
+
+            if (count == 0 && ((String) key).contains(containsKey)) {
                 minKey = (String) key;
                 minValue = (Integer) redisTemplate.opsForHash().get(WORKING_QUEUE, key);
             } else {

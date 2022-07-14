@@ -1,8 +1,10 @@
 package com.lkd.http.client;
 
+import com.lkd.entity.UserEntity;
 import com.lkd.feign.UserService;
 import com.lkd.vo.PartnerVO;
 import com.lkd.vo.UserVO;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/user")
@@ -31,6 +34,22 @@ public class UserClient implements UserService {
     @Override
     public List<UserVO> getOperators(String regionId) {
         return null;
+    }
+
+    @Override
+    public List<UserVO> getUserList() {
+        List<UserEntity> list = userService.list();
+
+        return list.stream().map(
+                user -> {
+                    UserVO userVO = new UserVO();
+                    BeanUtils.copyProperties(user, userVO);
+                    userVO.setUserId(user.getId());
+
+                    return userVO;
+                }
+        ).collect(Collectors.toList());
+
     }
 
     @Override

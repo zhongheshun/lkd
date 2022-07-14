@@ -69,7 +69,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements
         ArrayList<UserVO> list = new ArrayList<>();
         for (UserEntity userEntity : userEntities) {
             UserVO userVO = new UserVO();
-            userVO.setUserName(userEntity.getUserName());
+            BeanUtils.copyProperties(userEntity, userVO);
             userVO.setUserId(userEntity.getId());
             list.add(userVO);
         }
@@ -95,7 +95,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements
         ArrayList<UserVO> list = new ArrayList<>();
         for (UserEntity userEntity : userEntities) {
             UserVO userVO = new UserVO();
-            userVO.setUserName(userEntity.getUserName());
+            BeanUtils.copyProperties(userEntity, userVO);
             userVO.setUserId(userEntity.getId());
             list.add(userVO);
         }
