@@ -19,7 +19,6 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 @EnableCircuitBreaker
 @EnableConfigurationProperties
 @EnableScheduling
-@EnableFeignClients
 @EnableAsync
 public class ProductionServiceApplication{
     @Bean
