@@ -14,6 +14,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.support.atomic.RedisAtomicLong;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
@@ -23,6 +24,7 @@ import java.util.Date;
 @Service
 @Slf4j
 public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements TaskService {
+
 
     @Autowired
     RedisTemplate redisTemplate;
@@ -66,13 +68,6 @@ public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements
         }
     }
 
-    @Override
-    public void createTbTask() {
-        TaskEntity tbTask = new TaskEntity();
-        tbTask.setTaskCode(getOrderNumber());
-        tbTask.setUserId(1);
-        this.save(tbTask);
-    }
     /**
      *
      */

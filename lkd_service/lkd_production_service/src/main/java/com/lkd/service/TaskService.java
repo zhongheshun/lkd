@@ -9,10 +9,9 @@ public interface TaskService extends IService<TaskEntity> {
 
     /**
      * 创建工单
+     *
      * @return
      */
     void createTbTask(TaskSearchDTO tbTaskDto);
-
-    void createTbTask();
 
 }
