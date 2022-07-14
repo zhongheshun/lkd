@@ -1,30 +1,41 @@
 package com.lkd.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lkd.common.VMSystem;
 import com.lkd.dao.TaskDao;
 import com.lkd.dtos.TaskSearchDTO;
 import com.lkd.entity.TaskDetailsEntity;
 import com.lkd.entity.TaskEntity;
+import com.lkd.entity.TaskProductionDto;
+import com.lkd.exception.LogicException;
 import com.lkd.feign.UserService;
+import com.lkd.http.vo.CancelTaskViewModel;
 import com.lkd.service.TaskDetailsService;
 import com.lkd.service.TaskService;
+import com.lkd.vo.Pager;
+import com.lkd.vo.UserVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.support.atomic.RedisAtomicLong;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
+
 @Service
 @Slf4j
 public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements TaskService {
+
+    @Autowired
+    private UserService userService;
 
 
     @Autowired
@@ -120,4 +131,98 @@ public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements
         return counter.incrementAndGet();
     }
 
+    /**
+     * 运营APP端待办工单列表查询
+     *
+     * @param dto
+     * @return
+     */
+    @Override
+    public Pager pageList(TaskProductionDto dto) {
+        //检查参数
+        if (dto == null) {
+            throw new LogicException("工单查询异常");
+        }
+        //分页  判断数据是否为空
+        Page<TaskEntity> page = new Page(dto.getPageIndex(), dto.getPageSize());
+        if (page == null) {
+            throw new LogicException("页面错误");
+
+        }
+        //远程调用
+        UserVO user = userService.getUser(dto.getUserId());
+        if (user == null) {
+            throw new LogicException("请登录");
+
+        }
+        LambdaQueryWrapper<TaskEntity> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(TaskEntity::getUserName, user.getUserName());
+        wrapper.eq(TaskEntity::getTaskStatus, dto.getStatus());
+
+        page = this.page(page, wrapper);
+
+
+        return Pager.build(page);
+
+
+    }
+
+    /**
+     * 接受工单
+     *
+     * @param taskId
+     * @return
+     */
+    @Override
+    public boolean accept(Long taskId) {
+        //获取工单id
+        TaskEntity task = this.getById(taskId);
+        //判断工单状态是否待处理
+        if (task.getTaskStatus() != VMSystem.TASK_STATUS_CREATE) {
+            throw new LogicException("工单状态不是待处理状态");
+
+        }
+        task.setTaskStatus(VMSystem.TASK_STATUS_PROGRESS);
+        return this.updateById(task);
+
+    }
+
+    /**
+     * 完成工单
+     *
+     * @param taskId
+     * @return
+     */
+    @Override
+    public boolean completeTask(Long taskId) {
+        //获取工单id
+        TaskEntity task = this.getById(taskId);
+        task.setTaskStatus(VMSystem.TASK_STATUS_FINISH);
+        this.updateById(task);
+        return true;
+    }
+
+    /**
+     * 拒绝/取消工单
+     *
+     * @param taskId
+     * @param cancelTaskViewModel
+     * @return
+     */
+    @Override
+    public boolean cancelTask(Long taskId, CancelTaskViewModel cancelTaskViewModel) {
+        //获取工单id
+        TaskEntity task = this.getById(taskId);
+        //判断工单是否完成和待处理工单
+        if (task.getTaskStatus() == VMSystem.TASK_STATUS_FINISH || task.getTaskStatus() == VMSystem.TASK_STATUS_CREATE) {
+            throw new LogicException("工单已结束");
+
+        }
+        //我就取消工单和拒绝
+        task.setTaskStatus(VMSystem.TASK_STATUS_CANCEL);
+        //描述
+        task.setDesc(cancelTaskViewModel.getDesc());
+        //返回结果
+        return this.updateById(task);
+    }
 }
