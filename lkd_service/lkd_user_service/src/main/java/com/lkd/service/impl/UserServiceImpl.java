@@ -15,8 +15,10 @@ import com.lkd.service.UserService;
 import com.lkd.sms.SmsSender;
 import com.lkd.utils.BCrypt;
 import com.lkd.utils.JWTUtil;
+import com.lkd.vendingMachine.VmClient;
 import com.lkd.vo.Pager;
 import com.lkd.vo.UserVO;
+import com.lkd.vo.VmVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -32,18 +35,77 @@ import java.util.stream.Stream;
 
 @Service
 @Slf4j
-public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements UserService{
+public class UserServiceImpl extends ServiceImpl<UserDao, UserEntity> implements UserService {
     @Autowired
-    private RedisTemplate<String,String> redisTemplate;
+    private RedisTemplate<String, String> redisTemplate;
     @Autowired
     private PartnerService partnerService;
 
     @Autowired
     private SmsSender smsSender;
+
+    @Autowired
+    private UserDao userDao;
+
+    @Autowired
+    private VmClient client;
+
+    /**
+     * 根据机器id查询所属片区的维修人员
+     *
+     * @param innerCode
+     * @return
+     */
+    @Override
+    public ArrayList<UserVO> getUser(String innerCode) {
+        //根据售货机属性查询到地区id
+        VmVO vm = client.getByInnerCode(innerCode);
+        Long regionId = vm.getRegionId();
+        //根据地点id查询到该地点对应的运营人员
+        LambdaQueryWrapper<UserEntity> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(UserEntity::getRoleId, 2);
+        queryWrapper.eq(UserEntity::getRegionId, regionId);
+        List<UserEntity> userEntities = userDao.selectList(queryWrapper);
+        ArrayList<UserVO> list = new ArrayList<>();
+        for (UserEntity userEntity : userEntities) {
+            UserVO userVO = new UserVO();
+            userVO.setUserName(userEntity.getUserName());
+            userVO.setUserId(userEntity.getId());
+            list.add(userVO);
+        }
+        return list;
+    }
+
+    /**
+     * 根据售货机获取维修人员列表
+     *
+     * @param innerCode
+     * @return
+     */
+    @Override
+    public ArrayList<UserVO> getrepairerList(String innerCode) {
+        //根据售货机属性查询到地区id
+        VmVO vm = client.getByInnerCode(innerCode);
+        Long regionId = vm.getRegionId();
+        //根据地点id查询到该地点对应的运营人员
+        LambdaQueryWrapper<UserEntity> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(UserEntity::getRoleId, 3);
+        queryWrapper.eq(UserEntity::getRegionId, regionId);
+        List<UserEntity> userEntities = userDao.selectList(queryWrapper);
+        ArrayList<UserVO> list = new ArrayList<>();
+        for (UserEntity userEntity : userEntities) {
+            UserVO userVO = new UserVO();
+            userVO.setUserName(userEntity.getUserName());
+            userVO.setUserId(userEntity.getId());
+            list.add(userVO);
+        }
+        return list;
+    }
+
     @Override
     public Integer getOperatorCount() {
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(UserEntity::getRoleCode,"1002");
+        wrapper.eq(UserEntity::getRoleCode, "1002");
 
         return this.count(wrapper);
     }
@@ -51,32 +113,32 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     @Override
     public Integer getRepairerCount() {
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(UserEntity::getRoleCode,"1003");
+        wrapper.eq(UserEntity::getRoleCode, "1003");
 
         return this.count(wrapper);
     }
 
     @Override
-    public Pager<UserEntity> findPage(long pageIndex, long pageSize, String userName,Integer roleId,Boolean isRepair) {
+    public Pager<UserEntity> findPage(long pageIndex, long pageSize, String userName, Integer roleId, Boolean isRepair) {
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<UserEntity> page =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex,pageSize);
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex, pageSize);
 
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
-        if(!Strings.isNullOrEmpty(userName)){
-            wrapper.like(UserEntity::getUserName,userName);
+        if (!Strings.isNullOrEmpty(userName)) {
+            wrapper.like(UserEntity::getUserName, userName);
         }
-        if(roleId != null && roleId > 0){
-            wrapper.eq(UserEntity::getRoleId,roleId);
+        if (roleId != null && roleId > 0) {
+            wrapper.eq(UserEntity::getRoleId, roleId);
         }
-        if(isRepair != null && isRepair == true){
-            wrapper.eq(UserEntity::getRoleCode,"1003");
+        if (isRepair != null && isRepair == true) {
+            wrapper.eq(UserEntity::getRoleCode, "1003");
         }
-        if(isRepair != null && isRepair == false){
-            wrapper.eq(UserEntity::getRoleCode,"1002");
+        if (isRepair != null && isRepair == false) {
+            wrapper.eq(UserEntity::getRoleCode, "1002");
         }
-        wrapper.ne(UserEntity::getRoleId,1);
-        this.page(page,wrapper);
-        page.getRecords().forEach(u->{
+        wrapper.ne(UserEntity::getRoleId, 1);
+        this.page(page, wrapper);
+        page.getRecords().forEach(u -> {
             u.setPassword("");
             u.setSecret("");
         });
@@ -86,11 +148,13 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
 
     @Override
     public LoginResp login(LoginReq req) throws IOException {
-        if(req.getLoginType() == VMSystem.LOGIN_ADMIN){
+
+        System.out.println();
+        if (req.getLoginType() == VMSystem.LOGIN_ADMIN) {
             return this.adminLogin(req);
-        }else if(req.getLoginType() == VMSystem.LOGIN_EMP){
+        } else if (req.getLoginType() == VMSystem.LOGIN_EMP) {
             return this.empLogin(req);
-        }else if(req.getLoginType() == VMSystem.LOGIN_PARTNER){
+        } else if (req.getLoginType() == VMSystem.LOGIN_PARTNER) {
             return partnerService.login(req);
         }
         LoginResp resp = new LoginResp();
@@ -101,44 +165,43 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     }
 
 
-
     @Override
-    public void sendCode(String mobile){
+    public void sendCode(String mobile) {
         //非空校验
-        if(Strings.isNullOrEmpty(mobile)) return;
+        if (Strings.isNullOrEmpty(mobile)) return;
 
         //查询用户表中是否存在该手机号
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper
-                .eq(UserEntity::getMobile,mobile);
-        if(this.count(wrapper)<=0) return;  //如果不存在，直接返回
-        if(redisTemplate.opsForValue().get(mobile) != null) return;  //避免5分钟内重复发送
+                .eq(UserEntity::getMobile, mobile);
+        if (this.count(wrapper) <= 0) return;  //如果不存在，直接返回
+        if (redisTemplate.opsForValue().get(mobile) != null) return;  //避免5分钟内重复发送
         //生成5位短信验证码
         StringBuilder sbCode = new StringBuilder();
         Stream
-                .generate(()-> new Random().nextInt(10))
+                .generate(() -> new Random().nextInt(10))
                 .limit(5)
-                .forEach(x-> sbCode.append(x));
+                .forEach(x -> sbCode.append(x));
         //将验证码放入redis  ，5分钟过期
-        redisTemplate.opsForValue().set(mobile,sbCode.toString(), Duration.ofMinutes(5));
-        log.info("短信验证码："+sbCode.toString());
+        redisTemplate.opsForValue().set(mobile, sbCode.toString(), Duration.ofMinutes(5));
+        log.info("短信验证码：" + sbCode.toString());
         //发送短信
-        smsSender.sendMsg(mobile,sbCode.toString());
+        smsSender.sendMsg(mobile, sbCode.toString());
     }
 
     @Override
     public List<UserVO> getOperatorList(Long regionId) {
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper
-                .eq(UserEntity::getRoleCode,"1002")
-                .eq(UserEntity::getRegionId,regionId)
-                .eq(UserEntity::getStatus,true);
+                .eq(UserEntity::getRoleCode, "1002")
+                .eq(UserEntity::getRegionId, regionId)
+                .eq(UserEntity::getStatus, true);
 
         return this.list(wrapper)
                 .stream()
-                .map(u->{
+                .map(u -> {
                     UserVO vo = new UserVO();
-                    BeanUtils.copyProperties(u,vo);
+                    BeanUtils.copyProperties(u, vo);
                     vo.setRoleName(u.getRole().getRoleName());
                     vo.setRoleCode(u.getRoleCode());
                     vo.setUserId(u.getId());
@@ -150,15 +213,15 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     public List<UserVO> getRepairerList(Long regionId) {
         LambdaQueryWrapper<UserEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper
-                .eq(UserEntity::getRoleCode,"1003")
-                .eq(UserEntity::getRegionId,regionId)
-                .eq(UserEntity::getStatus,true);
+                .eq(UserEntity::getRoleCode, "1003")
+                .eq(UserEntity::getRegionId, regionId)
+                .eq(UserEntity::getStatus, true);
 
         return this.list(wrapper)
                 .stream()
-                .map(u->{
+                .map(u -> {
                     UserVO vo = new UserVO();
-                    BeanUtils.copyProperties(u,vo);
+                    BeanUtils.copyProperties(u, vo);
                     vo.setRoleName(u.getRole().getRoleName());
                     vo.setRoleCode(u.getRoleCode());
                     vo.setUserId(u.getId());
@@ -169,18 +232,21 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     @Override
     public Integer getCountByRegion(Long regionId, Boolean isRepair) {
         var qw = new LambdaQueryWrapper<UserEntity>();
-        qw.eq(UserEntity::getRegionId,regionId);
-        if(isRepair){
-            qw.eq(UserEntity::getRoleId,3);
-        }else {
-            qw.eq(UserEntity::getRoleId,2);
+        qw.eq(UserEntity::getRegionId, regionId);
+        if (isRepair) {
+            qw.eq(UserEntity::getRoleId, 3);
+        } else {
+            qw.eq(UserEntity::getRoleId, 2);
         }
 
         return this.count(qw);
     }
 
+
+
     /**
      * 管理员登录
+     *
      * @param req
      * @return
      * @throws IOException
@@ -188,51 +254,52 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     private LoginResp adminLogin(LoginReq req) throws IOException {
         LoginResp resp = new LoginResp();
         resp.setSuccess(false);
-        String code =redisTemplate.boundValueOps(req.getClientToken()).get();
-        if(Strings.isNullOrEmpty(code)){
+        String code = redisTemplate.boundValueOps(req.getClientToken()).get();
+        if (Strings.isNullOrEmpty(code)) {
             resp.setMsg("验证码错误");
             return resp;
         }
-        if(!req.getCode().equals(code)){
+        if (!req.getCode().equals(code)) {
             resp.setMsg("验证码错误");
             return resp;
         }
         QueryWrapper<UserEntity> qw = new QueryWrapper<>();
         qw.lambda()
-                .eq(UserEntity::getLoginName,req.getLoginName());
+                .eq(UserEntity::getLoginName, req.getLoginName());
         UserEntity userEntity = this.getOne(qw);
-        if(userEntity == null){
+        if (userEntity == null) {
             resp.setMsg("账户名或密码错误");
             return resp;
         }
-        boolean loginSuccess = BCrypt.checkpw(req.getPassword(),userEntity.getPassword());
-        if(!loginSuccess){
+        boolean loginSuccess = BCrypt.checkpw(req.getPassword(), userEntity.getPassword());
+        if (!loginSuccess) {
             resp.setMsg("账户名或密码错误");
             return resp;
         }
-        return okResp(userEntity,VMSystem.LOGIN_ADMIN);
+        return okResp(userEntity, VMSystem.LOGIN_ADMIN);
     }
 
     /**
      * 登录成功签发token
+     *
      * @param userEntity
      * @param loginType
      * @return
      */
-    private LoginResp okResp(UserEntity userEntity,Integer loginType ) throws IOException {
+    private LoginResp okResp(UserEntity userEntity, Integer loginType) throws IOException {
         LoginResp resp = new LoginResp();
         resp.setSuccess(true);
         resp.setRoleCode(userEntity.getRoleCode());
         resp.setUserName(userEntity.getUserName());
         resp.setUserId(userEntity.getId());
-        resp.setRegionId(userEntity.getRegionId()+"");
+        resp.setRegionId(userEntity.getRegionId() + "");
         resp.setMsg("登录成功");
 
         TokenObject tokenObject = new TokenObject();
         tokenObject.setUserId(userEntity.getId());
         tokenObject.setMobile(userEntity.getMobile());
         tokenObject.setLoginType(loginType);
-        String token = JWTUtil.createJWTByObj(tokenObject,userEntity.getMobile() + VMSystem.JWT_SECRET);
+        String token = JWTUtil.createJWTByObj(tokenObject, userEntity.getMobile() + VMSystem.JWT_SECRET);
         resp.setToken(token);
         return resp;
     }
@@ -240,6 +307,7 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
 
     /**
      * 运维运营人员登录
+     *
      * @param req
      * @return
      * @throws IOException
@@ -247,12 +315,12 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
     private LoginResp empLogin(LoginReq req) throws IOException {
         LoginResp resp = new LoginResp();
         resp.setSuccess(false);
-        String code =redisTemplate.boundValueOps(req.getMobile()).get();
-        if(Strings.isNullOrEmpty(code)){
+        String code = redisTemplate.boundValueOps(req.getMobile()).get();
+        if (Strings.isNullOrEmpty(code)) {
             resp.setMsg("验证码错误");
             return resp;
         }
-        if(!req.getCode().equals(code)){
+        if (!req.getCode().equals(code)) {
             resp.setMsg("验证码错误");
             return resp;
         }
@@ -261,11 +329,11 @@ public class UserServiceImpl extends ServiceImpl<UserDao,UserEntity> implements 
         qw.lambda()
                 .eq(UserEntity::getMobile, req.getMobile());
         UserEntity userEntity = this.getOne(qw);
-        if (userEntity == null){
+        if (userEntity == null) {
             resp.setMsg("不存在该账户");
             return resp;
         }
-        return okResp( userEntity,VMSystem.LOGIN_EMP );
+        return okResp(userEntity, VMSystem.LOGIN_EMP);
     }
 
 }
