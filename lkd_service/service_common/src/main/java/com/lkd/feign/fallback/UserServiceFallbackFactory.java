@@ -32,6 +32,11 @@ public class UserServiceFallbackFactory implements FallbackFactory<UserService> 
             }
 
             @Override
+            public List<UserVO> getUserList() {
+                return null;
+            }
+
+            @Override
             public Integer getOperatorCount() {
                 return 0;
             }

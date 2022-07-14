@@ -8,14 +8,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
 
-@FeignClient(value = "user-service",fallbackFactory = UserServiceFallbackFactory.class)
-public interface UserService{
+@FeignClient(value = "user-service", fallbackFactory = UserServiceFallbackFactory.class)
+public interface UserService {
     @GetMapping("/user/{id}")
     UserVO getUser(@PathVariable("id") int id);
+
     @GetMapping("/user/repairers/{regionId}")
     List<UserVO> getRepairers(@PathVariable("regionId") String regionId);
+
     @GetMapping("/user/operators/{regionId}")
     List<UserVO> getOperators(@PathVariable("regionId") String regionId);
+
+    @GetMapping("/user/list")
+    List<UserVO> getUserList();
 
     @GetMapping("/user/operaterCount")
     Integer getOperatorCount();
@@ -23,9 +28,11 @@ public interface UserService{
     @GetMapping("/user/repairerCount")
     Integer getRepairerCount();
 
+    //LXL
     @GetMapping("/user/repairerList/{innerCode}")
     List<UserVO> getRepairerListByInnerCode(@PathVariable String innerCode);
 
+    //LXL
     @GetMapping("/user/operatorList/{innerCode}")
     List<UserVO> getOperatorListByInnerCode(@PathVariable String innerCode);
 

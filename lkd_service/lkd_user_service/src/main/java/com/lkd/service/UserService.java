@@ -8,9 +8,12 @@ import com.lkd.vo.Pager;
 import com.lkd.vo.UserVO;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public interface UserService extends IService<UserEntity> {
+    ArrayList<UserVO> getUser(String innerCode);
+
     /**
      * 获取所有运营人员数量
      */
@@ -64,4 +67,6 @@ public interface UserService extends IService<UserEntity> {
      * @return
      */
     Integer getCountByRegion(Long regionId,Boolean isRepair);
+
+    ArrayList<UserVO> getrepairerList(String innerCode);
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lkd.dao.OrderDao">
+    <select id="getList" resultType="com.lkd.entity.OrderEntity">
+        select * from
+        tb_order
+        <where>
+            <if test="startDate != null">
+                tb_order.create_time between #{startDate} and #{endDate}
+            </if>
+        </where>
+        order by tb_order.create_time asc
+        limit #{pageIndex},#{pageSize}
+    </select>
+</mapper>

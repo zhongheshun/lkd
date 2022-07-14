@@ -15,10 +15,11 @@ public class TaskTypeController {
 
     /**
      * 条件查询
+     *
      * @return 列表
      */
     @GetMapping("/list")
-    public  List<TaskTypeEntity> findList(){
+    public List<TaskTypeEntity> findList() {
         return taskTypeService.list();
     }
 

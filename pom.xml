@@ -8,14 +8,15 @@
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>2.3.1.RELEASE</version>
     </parent>
+
     <groupId>com.lkd</groupId>
     <artifactId>lkd_parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>lkd_parent</name>
-
     <modules>
         <module>lkd_common</module>
         <module>lkd_service</module>
+        <module>Ikd_feign</module>
     </modules>
 
     <packaging>pom</packaging>

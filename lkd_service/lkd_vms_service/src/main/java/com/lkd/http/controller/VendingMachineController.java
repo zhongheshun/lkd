@@ -103,7 +103,7 @@ public class VendingMachineController {
      * @return
      */
     @GetMapping("/info/{innerCode}")
-    public VmVO getByInnerCode(@PathVariable("innerCode") String innerCode){
+    public VmVO getVMInfo(@PathVariable("innerCode") String innerCode) {
         return vendingMachineService.findByInnerCode(innerCode);
     }
 

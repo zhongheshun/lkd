@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 @Data
 @TableName(value = "tb_order")
@@ -78,4 +79,7 @@ public class OrderEntity extends AbstractEntity implements Serializable{
      * 取消原因
      */
     private String cancelDesc;
+
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 }
