@@ -28,7 +28,7 @@ public class ChannelServiceImpl extends ServiceImpl<ChannelDao,ChannelEntity> im
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex,pageSize);
 
         QueryWrapper queryWrapper = createQueryWrapper( searchMap );
-        this.page(page,queryWrapper);
+        this.page(page, queryWrapper);
 
         Pager<ChannelEntity> pageResult = new Pager<>();
         pageResult.setCurrentPageRecords(page.getRecords());
@@ -38,10 +38,16 @@ public class ChannelServiceImpl extends ServiceImpl<ChannelDao,ChannelEntity> im
         return pageResult;
     }
 
+    /**
+     * 获取售货机货道详情
+     *
+     * @param innerCode
+     * @return
+     */
     @Override
     public List<ChannelEntity> getChannelesByInnerCode(String innerCode) {
         LambdaQueryWrapper<ChannelEntity> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(ChannelEntity::getInnerCode,innerCode);
+        queryWrapper.eq(ChannelEntity::getInnerCode, innerCode);
 
         return this.list(queryWrapper);
     }

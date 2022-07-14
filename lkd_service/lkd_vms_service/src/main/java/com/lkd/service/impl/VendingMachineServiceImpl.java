@@ -3,21 +3,25 @@ package com.lkd.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.lkd.common.VMSystem;
-
+import com.lkd.config.TopicConfig;
+import com.lkd.contract.SupplyChannel;
 import com.lkd.contract.SupplyContract;
-
 import com.lkd.dao.VendingMachineDao;
-
+import com.lkd.emq.MqttProducer;
+import com.lkd.emq.MqttService;
 import com.lkd.entity.*;
 import com.lkd.exception.LogicException;
 import com.lkd.http.vo.CreateVMReq;
-import com.lkd.service.*;
-
+import com.lkd.service.ChannelService;
+import com.lkd.service.NodeService;
+import com.lkd.service.VendingMachineService;
+import com.lkd.service.VmTypeService;
 import com.lkd.utils.UUIDUtils;
 import com.lkd.vo.Pager;
 import com.lkd.vo.SkuVO;
@@ -28,16 +32,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,VendingMachineEntity> implements VendingMachineService{
+public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao, VendingMachineEntity> implements VendingMachineService {
 
     @Autowired
     private NodeService nodeService;
@@ -48,6 +51,58 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
     @Autowired
     private VmTypeService vmTypeService;
 
+    @Autowired
+    private MqttProducer mqttProducer;
+
+    /**
+     * 自动运营工单生成之  1获取售货机货道详情，确定补货情况
+     *
+     * @param innerCode
+     */
+    @Override
+    public void sendSupplyInfo(String innerCode) {
+
+        //1 根据售货机设备编号查询货道
+        List<ChannelEntity> channeles = channelService.getChannelesByInnerCode(innerCode);
+
+        List<SupplyChannel> supplyChannellist = new ArrayList<>();
+        for (ChannelEntity channele : channeles) {
+            Integer maxCapacity = channele.getMaxCapacity();
+            Integer currentCapacity = channele.getCurrentCapacity();
+            //当前货道需要补货数量
+            Integer supplyCapacity = maxCapacity - currentCapacity;
+            //当前货道存放商品名称
+            String skuName = channele.getSku().getSkuName();
+            //当前货道货道编号
+            String channelId = channele.getChannelId().toString();
+
+            //补货
+            //货道对象
+            SupplyChannel supplyChannel = new SupplyChannel();
+            supplyChannel.setCapacity(supplyCapacity);
+            supplyChannel.setSkuName(skuName);
+            supplyChannel.setChannelId(channelId);
+            //存放入list
+            supplyChannellist.add(supplyChannel);
+        }
+
+        //2 供应合约    补货数据
+        SupplyContract supplyContract = new SupplyContract();
+        if (supplyChannellist.size() > 0) {
+            supplyContract.setInnerCode(innerCode);
+            supplyContract.setSupplyData(supplyChannellist);
+        }
+
+        //3 发送消息
+        try {
+            mqttProducer.send(TopicConfig.VMS_COMPLETED_TOPIC, 2, supplyContract);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            throw new RuntimeException("发送协议类消息异常");
+        }
+    }
+
+
     @Override
     @Transactional(rollbackFor = {Exception.class})
     public boolean add(CreateVMReq vendingMachine) {
@@ -55,14 +110,14 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
         vendingMachineEntity.setNodeId(Long.valueOf(vendingMachine.getNodeId()));
         vendingMachineEntity.setVmType(vendingMachine.getVmType());
         NodeEntity nodeEntity = nodeService.getById(vendingMachine.getNodeId());
-        if(nodeEntity == null){
+        if (nodeEntity == null) {
             throw new LogicException("所选点位不存在");
         }
         //复制属性
-        BeanUtils.copyProperties(nodeEntity, vendingMachineEntity );
+        BeanUtils.copyProperties(nodeEntity, vendingMachineEntity);
         vendingMachineEntity.setCreateUserId(Long.valueOf(vendingMachine.getCreateUserId()));
         vendingMachineEntity.setInnerCode(UUIDUtils.getUUID());
-        vendingMachineEntity.setClientId(UUIDUtils.generateClientId( vendingMachineEntity.getInnerCode() ));
+        vendingMachineEntity.setClientId(UUIDUtils.generateClientId(vendingMachineEntity.getInnerCode()));
         this.save(vendingMachineEntity);
         //创建货道数据
         createChannel(vendingMachineEntity);
@@ -72,16 +127,17 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
 
     /**
      * 创建货道
+     *
      * @param vm
      * @return
      */
-    private boolean createChannel(VendingMachineEntity vm){
+    private boolean createChannel(VendingMachineEntity vm) {
         VmTypeEntity vmType = vmTypeService.getById(vm.getVmType());
-        List<ChannelEntity> channelList= Lists.newArrayList();
-        for(int i = 1; i <= vmType.getVmRow(); i++) {
-            for(int j = 1; j <= vmType.getVmCol(); j++) {
+        List<ChannelEntity> channelList = Lists.newArrayList();
+        for (int i = 1; i <= vmType.getVmRow(); i++) {
+            for (int j = 1; j <= vmType.getVmCol(); j++) {
                 ChannelEntity channel = new ChannelEntity();
-                channel.setChannelCode(i+"-"+j);
+                channel.setChannelCode(i + "-" + j);
                 channel.setCurrentCapacity(0);
                 channel.setInnerCode(vm.getInnerCode());
                 channel.setLastSupplyTime(vm.getLastSupplyTime());
@@ -98,29 +154,29 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
     @Override
     public boolean update(Long id, Long nodeId) {
         VendingMachineEntity vm = this.getById(id);
-        if(vm.getVmStatus() == VMSystem.VM_STATUS_RUNNING)
+        if (vm.getVmStatus() == VMSystem.VM_STATUS_RUNNING)
             throw new LogicException("改设备正在运营");
         NodeEntity nodeEntity = nodeService.getById(nodeId);
-        BeanUtils.copyProperties( nodeEntity,vm );
+        BeanUtils.copyProperties(nodeEntity, vm);
         return this.updateById(vm);
     }
 
 
     @Override
     public Pager<String> getAllInnerCodes(boolean isRunning, long pageIndex, long pageSize) {
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<VendingMachineEntity> page = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex,pageSize);
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<VendingMachineEntity> page = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex, pageSize);
 
         QueryWrapper<VendingMachineEntity> qw = new QueryWrapper<>();
-        if(isRunning){
+        if (isRunning) {
             qw.lambda()
                     .select(VendingMachineEntity::getInnerCode)
-                    .eq(VendingMachineEntity::getVmStatus,1);
-        }else {
+                    .eq(VendingMachineEntity::getVmStatus, 1);
+        } else {
             qw.lambda()
                     .select(VendingMachineEntity::getInnerCode)
-                    .ne(VendingMachineEntity::getVmStatus,1);
+                    .ne(VendingMachineEntity::getVmStatus, 1);
         }
-        this.page(page,qw);
+        this.page(page, qw);
         Pager<String> result = new Pager<>();
         result.setCurrentPageRecords(page.getRecords().stream().map(VendingMachineEntity::getInnerCode).collect(Collectors.toList()));
         result.setPageIndex(page.getCurrent());
@@ -131,17 +187,17 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
     }
 
     @Override
-    public Pager<VendingMachineEntity> query(Long pageIndex, Long pageSize, Integer status,String innerCode) {
+    public Pager<VendingMachineEntity> query(Long pageIndex, Long pageSize, Integer status, String innerCode) {
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<VendingMachineEntity> page
-                = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex,pageSize);
+                = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageIndex, pageSize);
         LambdaQueryWrapper<VendingMachineEntity> queryWrapper = new LambdaQueryWrapper<>();
-        if(status != null){
-            queryWrapper.eq(VendingMachineEntity::getVmStatus,status);
+        if (status != null) {
+            queryWrapper.eq(VendingMachineEntity::getVmStatus, status);
         }
-        if(!Strings.isNullOrEmpty(innerCode)){
-            queryWrapper.likeLeft(VendingMachineEntity::getInnerCode,innerCode);
+        if (!Strings.isNullOrEmpty(innerCode)) {
+            queryWrapper.likeLeft(VendingMachineEntity::getInnerCode, innerCode);
         }
-        this.page(page,queryWrapper);
+        this.page(page, queryWrapper);
 
         return Pager.build(page);
     }
@@ -150,10 +206,10 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
     @Override
     public VmVO findByInnerCode(String innerCode) {
         LambdaQueryWrapper<VendingMachineEntity> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(VendingMachineEntity::getInnerCode,innerCode);
+        queryWrapper.eq(VendingMachineEntity::getInnerCode, innerCode);
         VendingMachineEntity vm = this.getOne(queryWrapper);
-        VmVO vmVO=new VmVO();
-        BeanUtils.copyProperties(vm,vmVO);
+        VmVO vmVO = new VmVO();
+        BeanUtils.copyProperties(vm, vmVO);
         vmVO.setNodeAddr(vm.getNode().getAddr());//地址
         vmVO.setNodeName(vm.getNode().getName());//名称
         return vmVO;
@@ -162,15 +218,15 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
 
     @Override
     public boolean updateStatus(String innerCode, Integer status) {
-        try{
+        try {
             UpdateWrapper<VendingMachineEntity> uw = new UpdateWrapper<>();
             uw.lambda()
-                    .eq(VendingMachineEntity::getInnerCode,innerCode)
-                    .set(VendingMachineEntity::getVmStatus,status);
+                    .eq(VendingMachineEntity::getInnerCode, innerCode)
+                    .set(VendingMachineEntity::getVmStatus, status);
             this.update(uw);
 
-        }catch (Exception ex){
-            log.error("updateStatus error,innerCode is " + innerCode + " status is " + status,ex);
+        } catch (Exception ex) {
+            log.error("updateStatus error,innerCode is " + innerCode + " status is " + status, ex);
             return false;
         }
         return true;
@@ -187,15 +243,15 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
                 .collect(Collectors.groupingBy(
                         ChannelEntity::getSku,
                         Collectors.summingInt(ChannelEntity::getCurrentCapacity)));//对库存数求和
-        return skuMap.entrySet().stream().map( entry->{
+        return skuMap.entrySet().stream().map(entry -> {
                     SkuEntity sku = entry.getKey(); //查询商品
                     SkuVO skuVO = new SkuVO();
-                    BeanUtils.copyProperties( sku,skuVO );
+                    BeanUtils.copyProperties(sku, skuVO);
                     skuVO.setImage(sku.getSkuImage());//图片
-                    skuVO.setCapacity( entry.getValue() );
+                    skuVO.setCapacity(entry.getValue());
                     skuVO.setRealPrice(sku.getPrice());//真实价格
-                    return  skuVO;
-                } ).sorted(Comparator.comparing(SkuVO::getCapacity).reversed())  //按库存量降序排序
+                    return skuVO;
+                }).sorted(Comparator.comparing(SkuVO::getCapacity).reversed())  //按库存量降序排序
                 .collect(Collectors.toList());
     }
 
@@ -203,9 +259,9 @@ public class VendingMachineServiceImpl extends ServiceImpl<VendingMachineDao,Ven
     public Boolean hasCapacity(String innerCode, Long skuId) {
         var qw = new LambdaQueryWrapper<ChannelEntity>();
         qw
-                .eq(ChannelEntity::getInnerCode,innerCode)
-                .eq(ChannelEntity::getSkuId,skuId)
-                .gt(ChannelEntity::getCurrentCapacity,0);
+                .eq(ChannelEntity::getInnerCode, innerCode)
+                .eq(ChannelEntity::getSkuId, skuId)
+                .gt(ChannelEntity::getCurrentCapacity, 0);
         return channelService.count(qw) > 0;
     }
 
