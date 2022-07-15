@@ -2,6 +2,7 @@ package com.lkd.service.impl;
 
 import com.alibaba.fastjson.JSON;
 import com.lkd.common.VMSystem;
+import com.lkd.config.TopicConfig;
 import com.lkd.dtos.TaskSearchDTO;
 import com.lkd.emq.Topic;
 import com.lkd.entity.TaskEntity;
@@ -24,7 +25,7 @@ import java.util.Set;
 import static com.lkd.utils.UserRoleUtils.isOperator;
 import static com.lkd.utils.UserRoleUtils.isRepair;
 
-@Topic("XXXX")
+@Topic(TopicConfig.VMS_COMPLETED_TOPIC)
 public class TaskInitServiceImpl implements MqttCallback {
 
     @Autowired

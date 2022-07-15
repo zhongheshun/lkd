@@ -80,5 +80,6 @@ public interface VendingMachineService extends IService<VendingMachineEntity> {
     Boolean hasCapacity(String innerCode,Long skuId);
 
 
+    void sendSupplyInfo(String innerCode);
 
 }
