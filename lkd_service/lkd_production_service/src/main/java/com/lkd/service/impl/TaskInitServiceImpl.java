@@ -27,6 +27,8 @@ import static com.lkd.utils.UserRoleUtils.isRepair;
 @Topic(TopicConfig.VMS_COMPLETED_TOPIC)
 public class TaskInitServiceImpl implements MqttCallback, TaskInitService {
 
+//    new Task
+
     @Autowired
     UserService userClient;
 
