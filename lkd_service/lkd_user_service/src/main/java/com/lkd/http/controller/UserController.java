@@ -224,22 +224,4 @@ public class UserController {
 
         return userVO;
     }
-
-    /**
-     * 根据售货机获取运营人员列表
-     */
-    @GetMapping("/operatorList/{innerCode}")
-    public ArrayList<UserVO> operatorList(@PathVariable String innerCode) {
-        ArrayList<UserVO> userlist = userService.getUser(innerCode);
-        return userlist;
-    }
-
-    /**
-     * 根据售货机获取维修人员列表
-     */
-    @GetMapping("/repairerList/{innerCode}")
-    public ArrayList<UserVO> getrepairerList(@PathVariable String innerCode) {
-        ArrayList<UserVO> userlist = userService.getrepairerList(innerCode);
-        return userlist;
-    }
 }

@@ -13,7 +13,7 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 @EnableDiscoveryClient
 @EnableCaching
 @EnableConfigurationProperties
-@EnableFeignClients("com.lkd.vendingMachine")
+@EnableFeignClients("com.lkd.feign")
 @EnableTransactionManagement
 @SpringBootApplication
 public class UserServiceApplication {

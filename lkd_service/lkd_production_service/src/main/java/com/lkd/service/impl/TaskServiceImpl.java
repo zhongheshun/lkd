@@ -15,6 +15,7 @@ import com.lkd.feign.UserService;
 import com.lkd.http.vo.CancelTaskViewModel;
 import com.lkd.service.TaskDetailsService;
 import com.lkd.service.TaskService;
+import com.lkd.utils.UUIDUtils;
 import com.lkd.vo.Pager;
 import com.lkd.vo.UserVO;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Random;
 
 
 @Service
@@ -81,16 +83,12 @@ public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements
     }
 
     /**
-     *
-     */
-
-    /**
      * [生成唯一的编号]
      * 编号 = 当前的日期 + 递增的一个原子性的long值
      * 每天都会从0开始原子性的递增Redis中的这个long值，(例如：2020071200000001)
      * 设定每天的23:59:59 Redis中的这个long值 都会过期
      * 因此保证了每天的long值原子性的从0开始递增且不重复，然后拼接上每天都会改变且不重复的日期，保证了每个编号的唯一性
-     *
+     * 为了避免根据编号算出订单的数量，所以会加上一个随机1~3位的长度+雪花算法的三部分打散
      */
     public String getOrderNumber() {
 
@@ -111,9 +109,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskDao, TaskEntity> implements
         //生成八为的序列号，如果seq不够八位，seq前面补0，
         //如果seq位数超过了八位，那么无需补0直接返回当前的seq
         String sequence = StringUtils.leftPad(seq.toString(), 8, "0");
+
+        //uuid唯一id
+        String uuid = UUIDUtils.getUUID();
+
+        //1~3长度的随机数
+        int ranNum = new Random().nextInt(1000);
+
         //拼接业务编号
-        String seqNo = date + sequence;
-        log.error("KEY:{}, 序列号生成:{}, 过期时间:{}", key ,seqNo, String.format("%tF %tT ", expireDate, expireDate));
+        String seqNo = date + sequence + ranNum + uuid;
+
+        log.error("KEY:{}, 序列号生成:{}, 过期时间:{}", key, seqNo, String.format("%tF %tT ", expireDate, expireDate));
         return seqNo;
     }
 

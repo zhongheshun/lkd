@@ -5,10 +5,9 @@ import com.lkd.common.VMSystem;
 import com.lkd.config.TopicConfig;
 import com.lkd.dtos.TaskSearchDTO;
 import com.lkd.emq.Topic;
-import com.lkd.entity.TaskEntity;
-import com.lkd.entity.UserEntity;
 import com.lkd.feign.UserService;
 import com.lkd.feign.VMService;
+import com.lkd.service.TaskInitService;
 import com.lkd.service.TaskService;
 import com.lkd.vo.UserVO;
 import com.xxl.job.core.handler.annotation.XxlJob;
@@ -26,7 +25,7 @@ import static com.lkd.utils.UserRoleUtils.isOperator;
 import static com.lkd.utils.UserRoleUtils.isRepair;
 
 @Topic(TopicConfig.VMS_COMPLETED_TOPIC)
-public class TaskInitServiceImpl implements MqttCallback {
+public class TaskInitServiceImpl implements MqttCallback, TaskInitService {
 
     @Autowired
     UserService userClient;
@@ -66,8 +65,9 @@ public class TaskInitServiceImpl implements MqttCallback {
     /**
      * 初始化工单
      */
+    @Override
     @XxlJob("workCountInitJobHandler")
-    HttpStatus workCountInitJobHandler(String param) {
+    public HttpStatus workCountInitJobHandler(String param) {
 
         //删除hash表
         redisTemplate.opsForHash().delete(WORKING_QUEUE);
@@ -104,7 +104,8 @@ public class TaskInitServiceImpl implements MqttCallback {
     /**
      * 任务分配给最少任务的工人
      */
-    void taskAllocation(TaskSearchDTO taskSearchDTO) {
+    @Override
+    public void taskAllocation(TaskSearchDTO taskSearchDTO) {
 
         String minKey = null;
         Integer minValue = null;
